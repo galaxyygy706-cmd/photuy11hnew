@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- tables/{tableId}: trạng thái từng bàn ---
+    match /tables/{tableId} {
+      allow read: if true;
+      // Phải có CẢ 'paidAt': app ghi status + paidAt trong cùng một lệnh khi
+      // thanh toán xong ('cho_don' + mốc thời gian) và khi dọn xong
+      // ('trong' + null). Nếu chỉ cho ['status'] thì cả lệnh bị từ chối và
+      // bàn không bao giờ lên "Chờ dọn".
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['status', 'paidAt']); // chỉ cho sửa 2 field này
+      allow create, delete: if false; // danh sách bàn cố định, không cho tạo/xóa từ client
+    }
+
+    // --- orders/{tableId}: đơn hàng đang gọi của từng bàn ---
+    match /orders/{tableId} {
+      allow read, write: if true;
+    }
+
+    // --- history/{entryId}: lịch sử đơn đã thanh toán, append-only ---
+    match /history/{entryId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false; // không cho sửa/xóa lịch sử
+    }
+
+    // chặn mọi collection khác không nằm trong danh sách trên
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
